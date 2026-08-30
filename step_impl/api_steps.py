@@ -1,8 +1,14 @@
 from getgauge.python import step, data_store
 import requests
 from pydantic import BaseModel
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+API_KEY = os.getenv("REQRES_API_KEY")
 
 BASE_URL = "https://jsonplaceholder.typicode.com"
+AUTH_BASE_URL = "https://reqres.in/api"
 
 
 class UserSchema(BaseModel):
@@ -51,3 +57,27 @@ def check_user_schema():
     if isinstance(data, list):
         data = data[0]
     UserSchema(**data)
+
+
+@step("Авторизоваться в системе")
+def login():
+    payload = {"email": "eve.holt@reqres.in", "password": "cityslicka"}
+    headers = {"x-api-key": API_KEY}
+    response = requests.post(AUTH_BASE_URL + "/login",
+                             json=payload, headers=headers)
+    data_store.suite["token"] = response.json()["token"]
+
+
+@step("Проверить, что токен получен")
+def check_token():
+    assert data_store.suite["token"] is not None, "Токен не получен"
+
+
+@step("Отправить авторизованный GET запрос на <endpoint>")
+def send_authorized_get_request(endpoint):
+    headers = {
+        "Authorization": f"Bearer {data_store.suite['token']}",
+        "x-api-key": API_KEY
+    }
+    response = requests.get(AUTH_BASE_URL + endpoint, headers=headers)
+    data_store.scenario["response"] = response
